@@ -247,4 +247,23 @@ export async function uploadImage(file: File): Promise<string> {
   return downloadURL;
 }
 
+// User functions
+export async function getAllUsers() {
+  const querySnapshot = await getDocs(usersCollection);
+  return querySnapshot.docs.map(doc => ({
+    uid: doc.id,
+    ...doc.data(),
+  } as UserData));
+}
+
+export async function updateUserRole(userId: string, newRole: 'user' | 'admin' | 'manager') {
+  const userRef = doc(usersCollection, userId);
+  const timestamp = new Date();
+  
+  await updateDoc(userRef, {
+    role: newRole,
+    updatedAt: timestamp,
+  });
+}
+
 export { app, auth, db, storage }; 

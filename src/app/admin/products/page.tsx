@@ -24,6 +24,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Get the selected category object
   const selectedCategory = categories.find(cat => cat.id === newProduct.category);
@@ -33,6 +34,12 @@ export default function ProductsPage() {
   const selectedSubcategory = subcategories.find(sub => sub.id === newProduct.subcategory);
   // Get subsubcategories of selected subcategory
   const subsubcategories = selectedSubcategory?.subCategories || [];
+
+  // Filter products based on search query
+  const filteredProducts = products.filter(product => 
+    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    product.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
     fetchProducts();
@@ -262,6 +269,24 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {/* Search Input */}
+      <div className="mt-6">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search products by name or description..."
+            className="block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-[#FB8A13] focus:ring-[#FB8A13] dark:bg-gray-700 dark:text-white text-base text-gray-900 py-3 px-4 pr-10"
+          />
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+            <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
       {/* Products Table */}
       <div className="mt-10">
         <div className="overflow-x-auto">
@@ -288,7 +313,7 @@ export default function ProductsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
-                  {products.map((product) => (
+                  {filteredProducts.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                       <td className="whitespace-nowrap py-3.5 pl-4 pr-3 text-sm sm:pl-6">
                         <div className="flex items-center">

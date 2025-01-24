@@ -12,6 +12,7 @@ import {
   ArrowLeftOnRectangleIcon,
   SunIcon,
   MoonIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'Products', href: '/admin/products', icon: ShoppingBagIcon },
   { name: 'Categories', href: '/admin/categories', icon: TagIcon },
   { name: 'Promotions', href: '/admin/promotions', icon: GiftIcon },
+  { name: 'Users', href: '/admin/users', icon: UserGroupIcon },
 ];
 
 export default function AdminLayout({
