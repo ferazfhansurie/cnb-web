@@ -300,12 +300,12 @@ export default function ProductsPage() {
                           <div className="ml-4">
                             <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
                             <div className="flex flex-col">
-                              <div className={`text-gray-500 dark:text-gray-400 text-sm max-w-[300px] break-words whitespace-normal ${
-                                expandedProducts.has(product.id) ? '' : 'line-clamp-1'
+                              <div className={`text-gray-500 dark:text-gray-400 text-sm max-w-[300px] break-words whitespace-pre-wrap ${
+                                expandedProducts.has(product.id) ? '' : 'line-clamp-2'
                               }`}>
                                 {product.description}
                               </div>
-                              {product.description.length > 100 && (
+                              {product.description.length > 30 && (
                                 <button
                                   onClick={() => toggleDescription(product.id)}
                                   className="text-indigo-600 dark:text-indigo-400 text-sm hover:text-indigo-800 dark:hover:text-indigo-300 mt-1 text-left"
@@ -536,7 +536,7 @@ export default function ProductsPage() {
                         {/* Existing Images */}
                         {isEditing && editingProduct?.images && editingProduct.images.length > 0 && (
                           <div className="mt-4">
-                            <h4 className="text-sm font-medium text-gray-900 mb-2">Existing Images</h4>
+                            <h4 className="text-sm font-medium text-gray-900 mb-2 dark:text-white">Existing Images</h4>
                             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
                               {editingProduct.images.map((imageUrl, index) => (
                                 <div key={`existing-${index}`} className="relative group aspect-square">
