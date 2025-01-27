@@ -18,6 +18,8 @@ import {
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import type { Product, Category, Promotion, UserData } from '@/types';
 
+export type UserRole = 'Admin' | 'Manager' | 'User - Price' | 'User - No Price' | 'Pending';
+
 const firebaseConfig = {
   apiKey: 'AIzaSyB558CviT50ttHxIeSVROTEpxhu_h8Wias',
   authDomain: 'cnb-app-f2ed6.firebaseapp.com',
@@ -256,7 +258,7 @@ export async function getAllUsers() {
   } as UserData));
 }
 
-export async function updateUserRole(userId: string, newRole: 'user' | 'admin' | 'manager') {
+export async function updateUserRole(userId: string, newRole: 'Admin' | 'Manager' | 'User - Price' | 'User - No Price' | 'Pending') {
   const userRef = doc(usersCollection, userId);
   const timestamp = new Date();
   

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getAllUsers, updateUserRole } from '@/lib/firebase';
+import { getAllUsers, updateUserRole, UserRole } from '@/lib/firebase';
 import type { UserData } from '@/types';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserIcon } from '@heroicons/react/24/outline';
+import { ChevronUpDownIcon } from '@heroicons/react/24/outline';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserData[]>([]);
@@ -14,9 +15,13 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({
+    key: '',
+    direction: null,
+  });
   const { user: currentUser } = useAuth();
 
-  const roles: Array<'user' | 'admin' | 'manager'> = ['user', 'manager', 'admin'];
+  const roles: UserRole[] = ['Admin', 'Manager', 'User - Price', 'User - No Price', 'Pending'];
 
   useEffect(() => {
     if (!currentUser) {
@@ -50,7 +55,61 @@ export default function UsersPage() {
     setFilteredUsers(filtered);
   };
 
-  const handleUpdateRole = async (userId: string, newRole: 'user' | 'admin' | 'manager') => {
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' | null = 'asc';
+    
+    if (sortConfig.key === key) {
+      if (sortConfig.direction === 'asc') {
+        direction = 'desc';
+      } else if (sortConfig.direction === 'desc') {
+        direction = null;
+      }
+    }
+
+    setSortConfig({ key, direction });
+
+    if (direction === null) {
+      setFilteredUsers([...users].filter(user => 
+        user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase())
+      ));
+      return;
+    }
+
+    const sortedUsers = [...filteredUsers].sort((a, b) => {
+      if (key === 'name') {
+        return direction === 'asc'
+          ? (a.name || '').localeCompare(b.name || '')
+          : (b.name || '').localeCompare(a.name || '');
+      }
+      if (key === 'email') {
+        return direction === 'asc'
+          ? (a.email || '').localeCompare(b.email || '')
+          : (b.email || '').localeCompare(a.email || '');
+      }
+      if (key === 'role') {
+        return direction === 'asc'
+          ? (a.role || '').localeCompare(b.role || '')
+          : (b.role || '').localeCompare(a.role || '');
+      }
+      return 0;
+    });
+
+    setFilteredUsers(sortedUsers);
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key === key) {
+      if (sortConfig.direction === 'asc') {
+        return '↑';
+      } else if (sortConfig.direction === 'desc') {
+        return '↓';
+      }
+    }
+    return '↕';
+  };
+
+  const handleUpdateRole = async (userId: string, newRole: UserRole) => {
     try {
       if (!currentUser) {
         toast.error('You must be logged in to perform this action');
@@ -60,7 +119,7 @@ export default function UsersPage() {
       // Get the current user's data from the users list
       const currentUserData = users.find(u => u.uid === currentUser.uid);
       
-      if (!currentUserData || currentUserData.role !== 'admin') {
+      if (!currentUserData || currentUserData.role !== 'Admin') {
         toast.error('Only administrators can modify user roles');
         return;
       }
@@ -71,7 +130,7 @@ export default function UsersPage() {
         return;
       }
 
-      if (userId === currentUser.uid && newRole !== 'admin') {
+      if (userId === currentUser.uid && newRole !== 'Admin') {
         const confirmed = window.confirm(
           'You are about to remove your own admin privileges. This action will remove your ability to manage users and other administrative functions. Are you sure?'
         );
@@ -122,17 +181,35 @@ export default function UsersPage() {
               <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">
-                      Name
+                    <th 
+                      scope="col" 
+                      className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Name {getSortIcon('name')}
+                      </div>
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                      Email
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('email')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Email {getSortIcon('email')}
+                      </div>
                     </th>
                     {/* <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                       Company
                     </th> */}
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                      Role
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('role')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Role {getSortIcon('role')}
+                      </div>
                     </th>
                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                       <span className="sr-only">Actions</span>
@@ -167,11 +244,17 @@ export default function UsersPage() {
                         <td className="whitespace-nowrap px-3 py-4 text-sm">
                           <span
                             className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                              user.role === 'admin'
+                              user.role === 'Admin'
                                 ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                                : user.role === 'manager'
+                                : user.role === 'Manager'
                                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : user.role === 'User - Price'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : user.role === 'User - No Price'
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                : user.role === 'Pending'
+                                ? 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-200'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
                             }`}
                           >
                             {user.role}

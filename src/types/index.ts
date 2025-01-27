@@ -1,10 +1,12 @@
+import { UserRole } from '@/lib/firebase';
+
 export interface UserData {
   uid: string;
   email: string;
   name: string;
   companyName: string;
   fullName: string;
-  role: 'user' | 'admin' | 'manager';
+  role: UserRole;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -23,6 +23,10 @@ export default function PromotionsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({
+    key: '',
+    direction: null,
+  });
   const [newPromotion, setNewPromotion] = useState({
     name: '',
     description: '',
@@ -210,6 +214,72 @@ export default function PromotionsPage() {
     }
   };
 
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' | null = 'asc';
+    
+    if (sortConfig.key === key) {
+      if (sortConfig.direction === 'asc') {
+        direction = 'desc';
+      } else if (sortConfig.direction === 'desc') {
+        direction = null;
+      }
+    }
+
+    setSortConfig({ key, direction });
+
+    if (direction === null) {
+      // Reset to original order
+      loadPromotions();
+      return;
+    }
+
+    const sortedPromotions = [...promotions].sort((a, b) => {
+      if (key === 'name') {
+        return direction === 'asc'
+          ? (a.name || '').localeCompare(b.name || '')
+          : (b.name || '').localeCompare(a.name || '');
+      }
+      if (key === 'discount') {
+        const valueA = a.discountType === 'percentage' ? a.discountValue : a.discountValue;
+        const valueB = b.discountType === 'percentage' ? b.discountValue : b.discountValue;
+        return direction === 'asc'
+          ? valueA - valueB
+          : valueB - valueA;
+      }
+      if (key === 'product') {
+        const productA = products.find(p => p.id === a.productId)?.name || '';
+        const productB = products.find(p => p.id === b.productId)?.name || '';
+        return direction === 'asc'
+          ? productA.localeCompare(productB)
+          : productB.localeCompare(productA);
+      }
+      if (key === 'period') {
+        return direction === 'asc'
+          ? a.startDate.getTime() - b.startDate.getTime()
+          : b.startDate.getTime() - a.startDate.getTime();
+      }
+      if (key === 'status') {
+        return direction === 'asc'
+          ? (a.active === b.active ? 0 : a.active ? 1 : -1)
+          : (a.active === b.active ? 0 : a.active ? -1 : 1);
+      }
+      return 0;
+    });
+
+    setPromotions(sortedPromotions);
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key === key) {
+      if (sortConfig.direction === 'asc') {
+        return '↑';
+      } else if (sortConfig.direction === 'desc') {
+        return '↓';
+      }
+    }
+    return '↕';
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
@@ -238,20 +308,50 @@ export default function PromotionsPage() {
               <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">
-                      Name
+                    <th 
+                      scope="col" 
+                      className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Name {getSortIcon('name')}
+                      </div>
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                      Discount
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('discount')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Discount {getSortIcon('discount')}
+                      </div>
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                      Product
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('product')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Product {getSortIcon('product')}
+                      </div>
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                      Period
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('period')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Period {getSortIcon('period')}
+                      </div>
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                      Status
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Status {getSortIcon('status')}
+                      </div>
                     </th>
                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                       <span className="sr-only">Actions</span>

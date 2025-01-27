@@ -25,6 +25,10 @@ export default function ProductsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({
+    key: '',
+    direction: null,
+  });
 
   // Get the selected category object
   const selectedCategory = categories.find(cat => cat.id === newProduct.category);
@@ -40,6 +44,62 @@ export default function ProductsPage() {
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' | null = 'asc';
+    
+    if (sortConfig.key === key) {
+      if (sortConfig.direction === 'asc') {
+        direction = 'desc';
+      } else if (sortConfig.direction === 'desc') {
+        direction = null;
+      }
+    }
+
+    setSortConfig({ key, direction });
+
+    if (direction === null) {
+      // Reset to original order but keep the search filter
+      const filtered = products.filter(product => 
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setProducts([...products]); // Reset the main products array
+      return;
+    }
+
+    const sortedProducts = [...products].sort((a, b) => {
+      if (key === 'name') {
+        return direction === 'asc'
+          ? (a.name || '').localeCompare(b.name || '')
+          : (b.name || '').localeCompare(a.name || '');
+      }
+      if (key === 'stock') {
+        return direction === 'asc'
+          ? (a.stock || 0) - (b.stock || 0)
+          : (b.stock || 0) - (a.stock || 0);
+      }
+      if (key === 'price') {
+        return direction === 'asc'
+          ? (a.price || 0) - (b.price || 0)
+          : (b.price || 0) - (a.price || 0);
+      }
+      return 0;
+    });
+
+    setProducts(sortedProducts);
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key === key) {
+      if (sortConfig.direction === 'asc') {
+        return '↑';
+      } else if (sortConfig.direction === 'desc') {
+        return '↓';
+      }
+    }
+    return '↕';
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -295,20 +355,41 @@ export default function ProductsPage() {
               <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">
-                      Name
+                    <th 
+                      scope="col" 
+                      className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Name {getSortIcon('name')}
+                      </div>
                     </th>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">
+                    <th 
+                      scope="col" 
+                      className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6"
+                    >
                       Category
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                      Stock
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('stock')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Stock {getSortIcon('stock')}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSort('price')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Price {getSortIcon('price')}
+                      </div>
                     </th>
                     <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">
-                      Price
-                    </th>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">
-                        Actions
+                      Actions
                     </th>
                   </tr>
                 </thead>
