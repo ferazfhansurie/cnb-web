@@ -5,6 +5,8 @@ import { createProduct, deleteProduct, getAllProducts, getAllCategories, updateP
 import type { Product, Category } from '@/types';
 import toast from 'react-hot-toast';
 import { PencilIcon, TrashIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/contexts/AuthContext';
+import DebugInfo from '@/components/DebugInfo';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -29,6 +31,7 @@ export default function ProductsPage() {
     key: '',
     direction: null,
   });
+  const { user: currentUser } = useAuth();
 
   // Get the selected category object
   const selectedCategory = categories.find(cat => cat.id === newProduct.category);
@@ -309,8 +312,31 @@ export default function ProductsPage() {
     setNewProduct({ ...newProduct, images: newImages });
   };
 
+  const debugData = {
+    currentUser: {
+      uid: currentUser?.uid,
+      email: currentUser?.email,
+    },
+    totalProducts: products.length,
+    filteredProducts: filteredProducts.length,
+    categories: [...new Set(products.map(p => p.category))],
+    priceRange: {
+      min: Math.min(...products.map(p => p.price)),
+      max: Math.max(...products.map(p => p.price)),
+    },
+  };
+
+  const debugSummaryItems = [
+    { label: 'Total Products', value: debugData.totalProducts },
+    { label: 'Categories', value: debugData.categories.length },
+    { label: 'Filtered', value: debugData.filteredProducts },
+  ];
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+      {process.env.NODE_ENV === 'development' && (
+        <DebugInfo data={debugData} summaryItems={debugSummaryItems} />
+      )}
       <div className="sm:flex sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Products</h1>

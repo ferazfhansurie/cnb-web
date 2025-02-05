@@ -5,6 +5,8 @@ import { createCategory, deleteCategory, getAllCategories, updateCategory } from
 import type { Category } from '@/types';
 import toast from 'react-hot-toast';
 import { PlusIcon, MinusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/contexts/AuthContext';
+import DebugInfo from '@/components/DebugInfo';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -12,6 +14,7 @@ export default function CategoriesPage() {
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({});
   const [loading, setLoading] = useState(false);
+  const { user: currentUser } = useAuth();
 
   useEffect(() => {
     loadCategories();
@@ -258,8 +261,33 @@ export default function CategoriesPage() {
     });
   };
 
+  const debugData = {
+    currentUser: {
+      uid: currentUser?.uid,
+      email: currentUser?.email,
+    },
+    totalCategories: categories.length,
+    totalSubcategories: categories.reduce((acc, cat) => 
+      acc + cat.subCategories.length + 
+      cat.subCategories.reduce((subAcc, sub) => 
+        subAcc + (sub.subCategories?.length || 0), 0
+      ), 0
+    ),
+    categoriesWithSubcategories: categories.filter(cat => cat.subCategories.length > 0).length,
+  };
+
+  const debugSummaryItems = [
+    { label: 'Categories', value: debugData.totalCategories },
+    { label: 'Subcategories', value: debugData.totalSubcategories },
+    { label: 'Parent Categories', value: debugData.categoriesWithSubcategories },
+  ];
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+      {process.env.NODE_ENV === 'development' && (
+        <DebugInfo data={debugData} summaryItems={debugSummaryItems} />
+      )}
+      
       <div className="sm:flex sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Categories</h1>

@@ -7,6 +7,8 @@ import toast from 'react-hot-toast';
 import { Switch } from '@headlessui/react';
 import { CalendarIcon, PhotoIcon, XMarkIcon, TrashIcon, PencilIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
+import { useAuth } from '@/contexts/AuthContext';
+import DebugInfo from '@/components/DebugInfo';
 
 const formatDate = (date: Date) => {
   return date.toLocaleDateString('en-GB', {
@@ -18,8 +20,9 @@ const formatDate = (date: Date) => {
 
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [filteredPromotions, setFilteredPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
@@ -39,6 +42,7 @@ export default function PromotionsPage() {
     productId: '',
     images: [] as File[],
   });
+  const { user: currentUser } = useAuth();
 
   useEffect(() => {
     loadPromotions();
@@ -49,9 +53,12 @@ export default function PromotionsPage() {
     try {
       const allPromotions = await getAllPromotions();
       setPromotions(allPromotions);
+      setFilteredPromotions(allPromotions);
     } catch (error: any) {
       console.error('Error loading promotions:', error);
       toast.error('Failed to load promotions');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -280,8 +287,35 @@ export default function PromotionsPage() {
     return '↕';
   };
 
+  const debugData = {
+    currentUser: {
+      uid: currentUser?.uid,
+      email: currentUser?.email,
+    },
+    totalPromotions: promotions.length,
+    filteredPromotions: filteredPromotions.length,
+    activePromotions: promotions.filter(p => {
+      const now = new Date();
+      const startDate = new Date(p.startDate);
+      const endDate = new Date(p.endDate);
+      return now >= startDate && now <= endDate;
+    }).length,
+    totalProducts: products.length,
+    averageDiscount: promotions.reduce((acc, p) => acc + (p.discountType === 'percentage' ? p.discountValue : p.discountValue), 0) / promotions.length || 0,
+  };
+
+  const debugSummaryItems = [
+    { label: 'Total Promotions', value: debugData.totalPromotions },
+    { label: 'Active', value: debugData.activePromotions },
+    { label: 'Avg Discount', value: `${debugData.averageDiscount.toFixed(1)}%` },
+  ];
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+      {process.env.NODE_ENV === 'development' && (
+        <DebugInfo data={debugData} summaryItems={debugSummaryItems} />
+      )}
+      
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Promotions</h1>

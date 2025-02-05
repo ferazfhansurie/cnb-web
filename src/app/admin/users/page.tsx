@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getAllUsers, updateUserRole, UserRole } from '@/lib/firebase';
+import { getAllUsers, updateUserRole, deleteUser, UserRole, updateUser } from '@/lib/firebase';
 import type { UserData } from '@/types';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserIcon } from '@heroicons/react/24/outline';
+import { UserIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, PencilIcon } from '@heroicons/react/24/outline';
 import { ChevronUpDownIcon } from '@heroicons/react/24/outline';
+import DebugInfo from '@/components/DebugInfo';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserData[]>([]);
@@ -21,11 +22,26 @@ export default function UsersPage() {
   });
   const { user: currentUser } = useAuth();
 
+  // Add a new state for debug info expansion
+  const [isDebugExpanded, setIsDebugExpanded] = useState(false);
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editedProfile, setEditedProfile] = useState({
+    name: '',
+    email: '',
+  });
+
   const roles: UserRole[] = ['Admin', 'Manager', 'User - Price', 'User - No Price', 'Pending'];
 
   useEffect(() => {
+    console.log('Current User State:', {
+      currentUser,
+      email: currentUser?.email,
+      uid: currentUser?.uid
+    });
+    
     if (!currentUser) {
-      console.log('No user data found');
+      console.log('❌ No user data found');
       return;
     }
 
@@ -34,12 +50,23 @@ export default function UsersPage() {
 
   const loadUsers = async () => {
     try {
+      console.log('🚀 Loading users...');
       setLoading(true);
       const allUsers = await getAllUsers();
+      console.log('📋 All users:', allUsers);
+      
+      // Get current user's full data
+      const currentUserData = allUsers.find(u => u.uid === currentUser?.uid);
+      console.log('🎯 Current user data:', currentUserData);
+      
+      if (!currentUserData) {
+        console.warn('⚠️ Current user data not found in users list');
+      }
+
       setUsers(allUsers);
       setFilteredUsers(allUsers);
     } catch (error: any) {
-      console.error('Error fetching users:', error);
+      console.error('💥 Error fetching users:', error);
       toast.error(error.message);
     } finally {
       setLoading(false);
@@ -151,8 +178,204 @@ export default function UsersPage() {
     }
   };
 
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    try {
+      if (!currentUser) {
+        toast.error('You must be logged in to perform this action');
+        return;
+      }
+
+      // Get the current user's data from the users list
+      const currentUserData = users.find(u => u.uid === currentUser.uid);
+      
+      if (!currentUserData || currentUserData.role !== 'Admin') {
+        toast.error('Only administrators can delete users');
+        return;
+      }
+
+      // Prevent admin from deleting themselves
+      if (userId === currentUser.uid) {
+        toast.error('You cannot delete your own account');
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Are you sure you want to delete the user ${userEmail}? This action cannot be undone.`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      await deleteUser(userId);
+      await loadUsers();
+      toast.success('User deleted successfully');
+
+    } catch (error: any) {
+      console.error('Delete user error:', error);
+      toast.error(error.message);
+    }
+  };
+
+  const handleEditProfile = () => {
+    const currentUserData = users.find(u => u.uid === currentUser?.uid);
+    setEditedProfile({
+      name: currentUserData?.name || '',
+      email: currentUserData?.email || '',
+    });
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      if (!currentUser?.uid) return;
+
+      await updateUser(currentUser.uid, {
+        name: editedProfile.name,
+        email: editedProfile.email,
+      });
+
+      await loadUsers();
+      setIsEditingProfile(false);
+      toast.success('Profile updated successfully');
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast.error(error.message);
+    }
+  };
+
+  // Remove the local DebugInfo component implementation and just prepare the data
+  const debugData = {
+    currentUser: {
+      uid: currentUser?.uid,
+      email: currentUser?.email,
+    },
+    currentUserRole: users.find(u => u.uid === currentUser?.uid)?.role || 'N/A',
+    totalUsers: users.length,
+    filteredUsers: filteredUsers.length,
+  };
+
+  const debugSummaryItems = [
+    { label: 'Role', value: debugData.currentUserRole },
+    { label: 'Total Users', value: debugData.totalUsers },
+    { label: 'Filtered', value: debugData.filteredUsers },
+  ];
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
+      {process.env.NODE_ENV === 'development' && (
+        <DebugInfo data={debugData} summaryItems={debugSummaryItems} />
+      )}
+      
+      {/* Current User Profile Section */}
+      <div className="mb-8 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="flex items-center space-x-6">
+          <div className="flex-shrink-0">
+            {currentUser ? (
+              <div className="h-24 w-24 rounded-full bg-[#FB8A13] flex items-center justify-center">
+                <UserIcon className="h-12 w-12 text-white" aria-hidden="true" />
+              </div>
+            ) : (
+              <div className="h-24 w-24 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {users.find(u => u.uid === currentUser?.uid)?.name || currentUser?.email || 'Loading...'}
+                </h2>
+                {users.find(u => u.uid === currentUser?.uid)?.role && (
+                  <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
+                    users.find(u => u.uid === currentUser?.uid)?.role === 'Admin'
+                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                      : users.find(u => u.uid === currentUser?.uid)?.role === 'Manager'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                  }`}>
+                    {users.find(u => u.uid === currentUser?.uid)?.role}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleEditProfile}
+                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <PencilIcon className="h-5 w-5" />
+              </button>
+            </div>
+            {!isEditingProfile ? (
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-white">{currentUser?.email}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Account Status</p>
+                  <p className="mt-1 text-sm text-green-600 dark:text-green-400">Active</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Login</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-white">
+                    {currentUser?.metadata?.lastSignInTime ? new Date(currentUser.metadata.lastSignInTime).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Member Since</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-white">
+                    {currentUser?.metadata?.creationTime ? new Date(currentUser.metadata.creationTime).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    id="name"
+                    value={editedProfile.name}
+                    onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-[#FB8A13] focus:ring-[#FB8A13] dark:bg-gray-700 dark:text-white sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    id="email"
+                    value={editedProfile.email}
+                    onChange={(e) => setEditedProfile({ ...editedProfile, email: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-[#FB8A13] focus:ring-[#FB8A13] dark:bg-gray-700 dark:text-white sm:text-sm"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setIsEditingProfile(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-[#FB8A13]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveProfile}
+                    className="px-4 py-2 text-sm font-medium text-white bg-[#FB8A13] border border-transparent rounded-md hover:bg-[#e07911] focus:outline-none focus:ring-2 focus:ring-[#FB8A13]"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Users Management Header */}
       <div className="sm:flex sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Users Management</h1>
@@ -261,15 +484,44 @@ export default function UsersPage() {
                           </span>
                         </td>
                         <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setIsRoleModalOpen(true);
-                            }}
-                            className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-                          >
-                            Change Role
-                          </button>
+                          <div className="flex justify-end gap-4 items-center">
+                            {(() => {
+                              const currentUserRole = users.find(u => u.uid === currentUser?.uid)?.role;
+                              const canDelete = currentUserRole === 'Admin' && user.uid !== currentUser?.uid;
+                              
+                              if (process.env.NODE_ENV === 'development') {
+                                console.log('Delete button conditions:', {
+                                  currentUserRole,
+                                  userUid: user.uid,
+                                  currentUserUid: currentUser?.uid,
+                                  canDelete
+                                });
+                              }
+
+                              return (
+                                <div className="flex items-center gap-4">
+                                  {canDelete && (
+                                    <button
+                                      onClick={() => handleDeleteUser(user.uid, user.email)}
+                                      className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                                      title="Delete user"
+                                    >
+                                      <TrashIcon className="h-5 w-5" aria-hidden="true" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      setSelectedUser(user);
+                                      setIsRoleModalOpen(true);
+                                    }}
+                                    className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                  >
+                                    Change Role
+                                  </button>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </td>
                       </tr>
                     ))

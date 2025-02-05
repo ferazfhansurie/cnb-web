@@ -13,7 +13,8 @@ import {
   addDoc, 
   updateDoc, 
   arrayUnion, 
-  writeBatch 
+  writeBatch,
+  serverTimestamp
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import type { Product, Category, Promotion, UserData } from '@/types';
@@ -266,6 +267,30 @@ export async function updateUserRole(userId: string, newRole: 'Admin' | 'Manager
     role: newRole,
     updatedAt: timestamp,
   });
+}
+
+export async function deleteUser(userId: string) {
+  try {
+    // Delete from Firestore first
+    const userRef = doc(usersCollection, userId);
+    await deleteDoc(userRef);
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    throw error;
+  }
+}
+
+export async function updateUser(userId: string, data: { name?: string; email?: string }) {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      ...data,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    throw error;
+  }
 }
 
 export { app, auth, db, storage }; 
