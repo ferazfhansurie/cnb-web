@@ -56,7 +56,7 @@ export default function AdminLayout({
       <Toaster position="top-right" />
       
       {/* Mobile menu button and header */}
-      <div className="sticky top-0 z-40 flex h-16 flex-shrink-0 bg-white dark:bg-gray-900 lg:hidden">
+      <div className="sticky top-0 z-40 flex h-16 flex-shrink-0 bg-white dark:bg-gray-900 shadow-sm lg:hidden">
         <button
           type="button"
           className="px-4 text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#FB8A13] lg:hidden"
@@ -81,24 +81,26 @@ export default function AdminLayout({
             />
             <h1 className="ml-3 text-lg font-semibold text-gray-900 dark:text-white">CNB Admin</h1>
           </div>
-          <button
-            onClick={toggleDarkMode}
-            className="ml-auto p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {isDarkMode ? (
-              <SunIcon className="h-5 w-5" aria-hidden="true" />
-            ) : (
-              <MoonIcon className="h-5 w-5" aria-hidden="true" />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleDarkMode}
+              className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDarkMode ? (
+                <SunIcon className="h-5 w-5" aria-hidden="true" />
+              ) : (
+                <MoonIcon className="h-5 w-5" aria-hidden="true" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="flex min-h-[calc(100vh-4rem)] lg:min-h-screen">
         {/* Mobile menu */}
         <div
-          className={`fixed inset-0 z-40 lg:hidden ${
+          className={`fixed inset-0 z-50 lg:hidden ${
             isMobileMenuOpen ? 'block' : 'hidden'
           }`}
         >
@@ -112,12 +114,31 @@ export default function AdminLayout({
 
           {/* Mobile menu content */}
           <div
-            className={`fixed inset-y-0 left-0 flex w-full max-w-xs flex-col bg-white dark:bg-gray-900 transition-transform duration-300 ease-in-out ${
+            className={`fixed inset-y-0 left-0 flex w-full max-w-xs flex-col bg-white dark:bg-gray-900 shadow-xl transition-transform duration-300 ease-in-out transform ${
               isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
             <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
-              <nav className="mt-5 flex-1 space-y-1 px-2">
+              <div className="flex items-center justify-between px-4">
+                <div className="flex items-center">
+                  <Image
+                    src="/cnb-web.png"
+                    alt="CNB Logo"
+                    width={32}
+                    height={32}
+                    className="rounded-lg"
+                    priority
+                  />
+                  <h1 className="ml-3 text-lg font-semibold text-gray-900 dark:text-white">CNB Admin</h1>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                >
+                  <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                </button>
+              </div>
+              <nav className="mt-8 flex-1 space-y-1 px-4">
                 {navigation.map((item) => {
                   const isActive = pathname === item.href;
                   return (
@@ -129,12 +150,12 @@ export default function AdminLayout({
                         isActive
                           ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
                           : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                      } group flex items-center rounded-md px-2 py-2 text-base font-medium`}
+                      } group flex items-center rounded-md px-3 py-2.5 text-base font-medium transition-colors`}
                     >
                       <item.icon
                         className={`${
                           isActive ? 'text-gray-500 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-                        } mr-4 h-6 w-6 flex-shrink-0`}
+                        } mr-4 h-5 w-5 flex-shrink-0 transition-colors`}
                         aria-hidden="true"
                       />
                       {item.name}
@@ -145,9 +166,9 @@ export default function AdminLayout({
               <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 p-4">
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center justify-start rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="flex w-full items-center justify-start rounded-md px-3 py-2.5 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
-                  <ArrowLeftOnRectangleIcon className="h-5 w-5 mr-2 text-red-500" aria-hidden="true" />
+                  <ArrowLeftOnRectangleIcon className="h-5 w-5 mr-3 text-red-500" aria-hidden="true" />
                   Logout
                 </button>
               </div>
@@ -183,7 +204,7 @@ export default function AdminLayout({
               </button>
             </div>
             <div className="mt-8 flex flex-grow flex-col">
-              <nav className="flex-1 space-y-1 px-2">
+              <nav className="flex-1 space-y-2 px-4">
                 {navigation.map((item) => {
                   const isActive = pathname === item.href;
                   return (
@@ -194,12 +215,12 @@ export default function AdminLayout({
                         isActive
                           ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
                           : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                      } group flex items-center rounded-md px-2 py-2 text-base font-medium`}
+                      } group flex items-center rounded-md px-3 py-2.5 text-base font-medium transition-colors`}
                     >
                       <item.icon
                         className={`${
                           isActive ? 'text-gray-500 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-                        } mr-4 h-6 w-6 flex-shrink-0`}
+                        } mr-4 h-5 w-5 flex-shrink-0 transition-colors`}
                         aria-hidden="true"
                       />
                       {item.name}
@@ -211,9 +232,9 @@ export default function AdminLayout({
             <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 p-4">
               <button
                 onClick={handleLogout}
-                className="flex w-full items-center justify-start rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="flex w-full items-center justify-start rounded-md px-3 py-2.5 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
-                <ArrowLeftOnRectangleIcon className="h-5 w-5 mr-2 text-red-500" aria-hidden="true" />
+                <ArrowLeftOnRectangleIcon className="h-5 w-5 mr-3 text-red-500" aria-hidden="true" />
                 Logout
               </button>
             </div>
@@ -224,7 +245,7 @@ export default function AdminLayout({
         <div className="flex flex-1 flex-col lg:pl-64">
           <main className="flex-1 bg-gray-50 dark:bg-gray-900">
             <div className="py-6">
-              <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
+              <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 {children}
               </div>
             </div>

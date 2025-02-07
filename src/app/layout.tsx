@@ -15,6 +15,12 @@ export const metadata: Metadata = {
     shortcut: '/cnb-web.png',
     apple: '/cnb-web.png',
   },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
 };
 
 export default function RootLayout({
@@ -24,11 +30,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full">
-      <body className={`${inter.className} h-full dark:bg-gray-900`}>
+      <body className={`${inter.className} h-full dark:bg-gray-900 antialiased`}>
         <ThemeProvider>
           <AuthProvider>
-            {children}
-            <Toaster position="top-right" />
+            <div className="min-h-screen flex flex-col">
+              {children}
+              <Toaster position="top-right" />
+            </div>
           </AuthProvider>
         </ThemeProvider>
       </body>
