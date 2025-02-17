@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().role == 'Admin';
+    }
+
+    function isManager() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().role == 'Manager';
+    }
+
+    function canSeePrice() {
+      let userDoc = getUserData();
+      return userDoc.role == 'Admin' || userDoc.role == 'Manager' || userDoc.role == 'User - Price';
+    }
+
+    // User rules
+    match /users/{userId} {
+      // Allow users to read their own document
+      // Allow admins and managers to read all user documents
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || isAdmin() || isManager()
+      );
+      
+      // Allow users to create their own document
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Allow users to update their own document (except role)
+      // Allow only admins to update roles
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == userId && !('role' in request.resource.data)) || 
+        isAdmin()
+      );
+
+      // Allow only admins to delete users
+      allow delete: if isAdmin() && request.auth.uid != userId;
+    }
+
+    // Product rules
+    match /products/{productId} {
+      // Allow read if authenticated
+      allow read: if isAuthenticated();
+      // Allow both admins and managers to manage products
+      allow create, update, delete: if isAdmin() || isManager();
+    }
+
+    // Category rules
+    match /categories/{categoryId} {
+      allow read: if isAuthenticated();
+      // Allow both admins and managers to manage categories
+      allow create, update, delete: if isAdmin() || isManager();
+    }
+    
+    // Promotion rules
+    match /promotions/{promotionId} {
+      allow read: if isAuthenticated();
+      // Allow both admins and managers to manage promotions
+      allow create, update, delete: if isAdmin() || isManager();
+    }
+  }
+} 

@@ -271,12 +271,55 @@ export async function updateUserRole(userId: string, newRole: 'Admin' | 'Manager
 
 export async function deleteUser(userId: string) {
   try {
-    // Delete from Firestore first
+    // Ensure we're not trying to delete ourselves
+    if (userId === auth.currentUser?.uid) {
+      throw new Error('Cannot delete your own account');
+    }
+
+    // Get admin user's role first
+    const adminUserDoc = await getDoc(doc(usersCollection, auth.currentUser?.uid));
+    const adminUserData = adminUserDoc.data();
+    
+    if (!adminUserData || adminUserData.role !== 'Admin') {
+      throw new Error('Only administrators can delete users');
+    }
+
+    // Get the user document first to verify it exists
     const userRef = doc(usersCollection, userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      throw new Error('User not found in Firestore');
+    }
+
+    // Delete from Firestore first
     await deleteDoc(userRef);
-  } catch (error) {
+
+    // Then delete from Authentication using the Cloud Function
+    const deleteUserFunctionUrl = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/deleteUser`;
+    const idToken = await auth.currentUser?.getIdToken(true); // Force token refresh
+    
+    if (!idToken) {
+      throw new Error('Not authenticated');
+    }
+
+    const response = await fetch(deleteUserFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ userId }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to delete user from Authentication. User was deleted from Firestore but may still exist in Authentication.');
+      throw new Error(`Failed to delete user from Authentication: ${response.statusText}`);
+    }
+
+  } catch (error: any) {
     console.error("Error deleting user:", error);
-    throw error;
+    throw new Error(error.message || 'Failed to delete user');
   }
 }
 
