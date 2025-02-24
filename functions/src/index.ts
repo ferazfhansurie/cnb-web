@@ -10,10 +10,10 @@
 import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {onRequest} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import * as functions from "firebase-functions";
 import {UserData} from "./types";
 import {getActivationEmailTemplate} from "./email/templates";
 import {sendEmail} from "./email/sender";
-import * as functions from "firebase-functions";
 import type {Request, Response} from "express";
 
 // Initialize Firebase Admin
@@ -28,9 +28,12 @@ export const createTestUser = onRequest(async (req, res) => {
       return;
     }
 
+    const timestamp = Date.now();
+    const testEmail = `test${timestamp}@example.com`;
+
     // Create user in Firebase Auth
     const userRecord = await admin.auth().createUser({
-      email: "test@example.com",
+      email: testEmail,
       password: "testpassword123",
       displayName: "Test User",
     });
@@ -41,7 +44,7 @@ export const createTestUser = onRequest(async (req, res) => {
       .collection("users")
       .doc(userRecord.uid)
       .set({
-        email: "test@example.com",
+        email: testEmail,
         name: "Test User",
         role: "Pending",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -50,6 +53,7 @@ export const createTestUser = onRequest(async (req, res) => {
     res.status(200).json({
       message: "Test user created successfully",
       userId: userRecord.uid,
+      email: testEmail,
     });
   } catch (error) {
     console.error("Error creating test user:", error);
@@ -62,14 +66,6 @@ export const onUserRoleUpdate = onDocumentUpdated("users/{userId}", async (event
   console.log("Document path:", event.data?.after?.ref?.path);
 
   try {
-    // Check if Gmail credentials are configured
-    const GMAIL_USER = process.env.GMAIL_USER;
-    const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-      throw new Error("Gmail credentials are not configured");
-    }
-    console.log("Gmail credentials verified");
-
     const beforeData = event.data?.before?.data() as UserData | undefined;
     const afterData = event.data?.after?.data() as UserData | undefined;
 
@@ -118,90 +114,90 @@ export const onUserRoleUpdate = onDocumentUpdated("users/{userId}", async (event
   }
 });
 
+// Remove the old onUserDeleted trigger since we're handling deletion differently now
 // Function to handle user deletion
-export const onUserDeleted = onDocumentUpdated("users/{userId}", async (event) => {
-  try {
-    const beforeSnapshot = event.data?.before;
-    const afterSnapshot = event.data?.after;
-
-    // If document was deleted (exists before but not after)
-    if (beforeSnapshot && !afterSnapshot) {
-      const userId = event.params.userId;
-      try {
-        // Try to delete the user from Authentication
-        await admin.auth().deleteUser(userId);
-        console.log("User deleted from Auth:", userId);
-      } catch (error) {
-        // If error is user-not-found, that's okay - it means they were already deleted
-        if (error && typeof error === "object" && "code" in error && error.code !== "auth/user-not-found") {
-          console.error("Error deleting user from Auth:", error);
-          // Don't throw here as the Firestore document is already deleted
-          // Just log the error for monitoring
-        }
-      }
-    }
-  } catch (error) {
-    console.error("Error in onUserDeleted function:", error);
-    // Don't throw here as it would trigger a retry, and we don't want to retry
-    // if the Firestore document is already deleted
-  }
-});
-
-export const deleteUser = functions.https.onRequest(
+export const deleteUserFunction = functions.https.onRequest(
   async (req: Request, res: Response) => {
     try {
-      // Verify the request is authorized
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        res.status(401).json({error: "Unauthorized"});
+      // Only allow POST requests
+      if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method not allowed' });
         return;
       }
 
-      const idToken = authHeader.split("Bearer ")[1];
+      // Verify the request is authorized
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const idToken = authHeader.split('Bearer ')[1];
       const decodedToken = await admin.auth().verifyIdToken(idToken);
 
       // Get the admin user's role from Firestore
       const adminUserDoc = await admin.firestore()
-        .collection("users")
+        .collection('users')
         .doc(decodedToken.uid)
         .get();
 
       if (!adminUserDoc.exists) {
-        res.status(403).json({error: "User not found"});
+        res.status(403).json({ error: 'User not found' });
         return;
       }
 
       const adminUserData = adminUserDoc.data() as UserData;
-      if (adminUserData.role !== "Admin") {
-        res.status(403).json({error: "Forbidden: Only administrators can delete users"});
+      if (adminUserData.role !== 'Admin') {
+        res.status(403).json({ error: 'Forbidden: Only administrators can delete users' });
         return;
       }
 
       // Get the user ID to delete from the request body
-      const {userId} = req.body;
+      const { userId } = req.body;
       if (!userId) {
-        res.status(400).json({error: "Missing userId in request body"});
+        res.status(400).json({ error: 'Missing userId in request body' });
         return;
       }
 
-      try {
-        // Delete the user from Authentication
-        await admin.auth().deleteUser(userId);
-        console.log("Successfully deleted user from Authentication:", userId);
-        res.status(200).json({message: "User deleted successfully from Authentication"});
-      } catch (error) {
-        // If user doesn't exist in Authentication, that's okay
-        if (error && typeof error === "object" && "code" in error && error.code === "auth/user-not-found") {
-          console.warn("User not found in Authentication:", userId);
-          res.status(200).json({message: "User was already deleted from Authentication"});
+      // Delete the user from Authentication
+      await admin.auth().deleteUser(userId);
+      
+      res.status(200).json({ message: 'User deleted successfully' });
+    } catch (error) {
+      console.error('Error in deleteUserFunction:', error);
+      if (error && typeof error === 'object' && 'code' in error) {
+        const authError = error as { code: string };
+        if (authError.code === 'auth/user-not-found') {
+          res.status(404).json({ error: 'User not found in Authentication' });
           return;
         }
-        throw error;
       }
-    } catch (error) {
-      console.error("Error in deleteUser function:", error);
-      const msg = error instanceof Error ? error.message : "Internal server error";
-      res.status(500).json({error: msg});
+      res.status(500).json({ error: 'Failed to delete user' });
     }
   }
 );
+
+// Temporary function to test role update
+export const updateTestUserRole = onRequest(async (req, res) => {
+  try {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      res.status(400).json({error: "Missing userId query parameter"});
+      return;
+    }
+
+    await admin
+      .firestore()
+      .collection("users")
+      .doc(userId)
+      .update({
+        role: "User - Price",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+    res.status(200).json({message: "User role updated successfully"});
+  } catch (error) {
+    console.error("Error updating test user role:", error);
+    res.status(500).json({error: "Failed to update user role"});
+  }
+});

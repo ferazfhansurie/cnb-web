@@ -63,14 +63,8 @@ export const getActivationEmailTemplate = (
         </div>
 
         <p style="font-size: 16px; line-height: 1.5; color: #333;">
-          You can now log in to the CNB Carpets platform using your email and 
-          password at:
-          <a 
-            href="https://cnb-web.vercel.app/login" 
-            style="color: #FB8A13; text-decoration: none;"
-          >
-            https://cnb-web.vercel.app/login
-          </a>
+          You can now log in to the CNB Carpets app using your email and 
+          password.
         </p>
 
         <p style="font-size: 16px; line-height: 1.5; color: #333;">

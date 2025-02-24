@@ -292,12 +292,9 @@ export async function deleteUser(userId: string) {
       throw new Error('User not found in Firestore');
     }
 
-    // Delete from Firestore first
-    await deleteDoc(userRef);
-
-    // Then delete from Authentication using the Cloud Function
-    const deleteUserFunctionUrl = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/deleteUser`;
-    const idToken = await auth.currentUser?.getIdToken(true); // Force token refresh
+    // Call the deleteUser Cloud Function
+    const deleteUserFunctionUrl = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/deleteUserFunction`;
+    const idToken = await auth.currentUser?.getIdToken(true);
     
     if (!idToken) {
       throw new Error('Not authenticated');
@@ -313,13 +310,15 @@ export async function deleteUser(userId: string) {
     });
 
     if (!response.ok) {
-      console.error('Failed to delete user from Authentication. User was deleted from Firestore but may still exist in Authentication.');
-      throw new Error(`Failed to delete user from Authentication: ${response.statusText}`);
+      throw new Error(`Failed to delete user: ${response.statusText}`);
     }
 
+    // If the cloud function was successful, delete from Firestore
+    await deleteDoc(userRef);
+
   } catch (error: any) {
-    console.error("Error deleting user:", error);
-    throw new Error(error.message || 'Failed to delete user');
+    console.error("Delete user error:", error);
+    throw error;
   }
 }
 

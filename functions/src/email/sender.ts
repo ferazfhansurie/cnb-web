@@ -1,14 +1,22 @@
 import * as nodemailer from "nodemailer";
 import {EmailTemplate} from "./templates";
+import {defineString} from "firebase-functions/params";
 
-// Create a transporter using Gmail
+// Define environment variables
+const mailServerHost = defineString("MAIL_SERVER_HOST", {default: "mail.cnbcarpets.com"});
+const mailServerUser = defineString("MAIL_SERVER_USER");
+const mailServerPassword = defineString("MAIL_SERVER_PASSWORD");
+
+// Create a transporter using SMTP
 const createTransporter = () => {
-  console.log("Creating email transporter with configured Gmail account");
+  console.log("Creating email transporter with SMTP configuration");
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: mailServerHost.value(),
+    port: 587, // Common SMTP port for TLS
+    secure: false, // true for 465, false for other ports
     auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
+      user: mailServerUser.value(),
+      pass: mailServerPassword.value(),
     },
   });
   return transporter;
@@ -23,14 +31,18 @@ export const sendEmail = async (
   console.log("Email subject:", template.subject);
 
   try {
-    // Verify Gmail credentials exist
-    const GMAIL_USER = process.env.GMAIL_USER;
-    const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+    // Verify SMTP credentials exist
+    const SMTP_USER = mailServerUser.value();
+    const SMTP_PASSWORD = mailServerPassword.value();
 
-    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-      throw new Error("Gmail credentials are not configured");
+    if (!SMTP_USER || !SMTP_PASSWORD) {
+      console.error("SMTP credentials missing:", {
+        user: Boolean(SMTP_USER),
+        password: Boolean(SMTP_PASSWORD),
+      });
+      throw new Error("SMTP credentials are not configured");
     }
-    console.log("Gmail credentials verified");
+    console.log("SMTP credentials verified");
 
     const transporter = createTransporter();
     console.log("Email transporter created successfully");
@@ -40,7 +52,7 @@ export const sendEmail = async (
     console.log("Email transporter connection verified");
 
     const result = await transporter.sendMail({
-      from: GMAIL_USER,
+      from: SMTP_USER,
       to,
       subject: template.subject,
       html: template.html,
