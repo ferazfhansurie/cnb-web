@@ -293,7 +293,7 @@ export async function deleteUser(userId: string) {
     }
 
     // Call the deleteUser Cloud Function
-    const deleteUserFunctionUrl = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/deleteUserFunction`;
+    const deleteUserFunctionUrl = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/deleteUser`;
     const idToken = await auth.currentUser?.getIdToken(true);
     
     if (!idToken) {
