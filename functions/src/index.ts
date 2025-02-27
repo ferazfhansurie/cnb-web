@@ -15,9 +15,13 @@ import {UserData} from "./types";
 import {getActivationEmailTemplate} from "./email/templates";
 import {sendEmail} from "./email/sender";
 import type {Request, Response} from "express";
+import cors from "cors";
 
 // Initialize Firebase Admin
 admin.initializeApp();
+
+// Initialize CORS middleware
+const corsHandler = cors({origin: true});
 
 // Function to create a test user
 export const createTestUser = onRequest(async (req, res) => {
@@ -114,66 +118,68 @@ export const onUserRoleUpdate = onDocumentUpdated("users/{userId}", async (event
   }
 });
 
-// Remove the old onUserDeleted trigger since we're handling deletion differently now
 // Function to handle user deletion
 export const deleteUserFunction = functions.https.onRequest(
   async (req: Request, res: Response) => {
-    try {
-      // Only allow POST requests
-      if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-      }
-
-      // Verify the request is authorized
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-      }
-
-      const idToken = authHeader.split('Bearer ')[1];
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-      // Get the admin user's role from Firestore
-      const adminUserDoc = await admin.firestore()
-        .collection('users')
-        .doc(decodedToken.uid)
-        .get();
-
-      if (!adminUserDoc.exists) {
-        res.status(403).json({ error: 'User not found' });
-        return;
-      }
-
-      const adminUserData = adminUserDoc.data() as UserData;
-      if (adminUserData.role !== 'Admin') {
-        res.status(403).json({ error: 'Forbidden: Only administrators can delete users' });
-        return;
-      }
-
-      // Get the user ID to delete from the request body
-      const { userId } = req.body;
-      if (!userId) {
-        res.status(400).json({ error: 'Missing userId in request body' });
-        return;
-      }
-
-      // Delete the user from Authentication
-      await admin.auth().deleteUser(userId);
-      
-      res.status(200).json({ message: 'User deleted successfully' });
-    } catch (error) {
-      console.error('Error in deleteUserFunction:', error);
-      if (error && typeof error === 'object' && 'code' in error) {
-        const authError = error as { code: string };
-        if (authError.code === 'auth/user-not-found') {
-          res.status(404).json({ error: 'User not found in Authentication' });
+    // Enable CORS
+    return corsHandler(req, res, async () => {
+      try {
+        // Only allow POST requests
+        if (req.method !== "POST") {
+          res.status(405).json({"error": "Method not allowed"});
           return;
         }
+
+        // Verify the request is authorized
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          res.status(401).json({"error": "Unauthorized"});
+          return;
+        }
+
+        const idToken = authHeader.split("Bearer ")[1];
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+        // Get the admin user's role from Firestore
+        const adminUserDoc = await admin.firestore()
+          .collection("users")
+          .doc(decodedToken.uid)
+          .get();
+
+        if (!adminUserDoc.exists) {
+          res.status(403).json({"error": "User not found"});
+          return;
+        }
+
+        const adminUserData = adminUserDoc.data() as UserData;
+        if (adminUserData.role !== "Admin") {
+          res.status(403).json({"error": "Forbidden: Only administrators can delete users"});
+          return;
+        }
+
+        // Get the user ID to delete from the request body
+        const {userId} = req.body;
+        if (!userId) {
+          res.status(400).json({"error": "Missing userId in request body"});
+          return;
+        }
+
+        // Delete the user from Authentication
+        await admin.auth().deleteUser(userId);
+
+        res.status(200).json({"message": "User deleted successfully"});
+      } catch (error) {
+        console.error("Error in deleteUserFunction:", error);
+        if (error && typeof error === "object" && "code" in error) {
+          const authError = error as {code: string};
+          if (authError.code === "auth/user-not-found") {
+            res.status(404).json({"error": "User not found in Authentication"});
+            return;
+          }
+        }
+        res.status(500).json({"error": "Failed to delete user"});
       }
-      res.status(500).json({ error: 'Failed to delete user' });
-    }
+    });
   }
 );
 
