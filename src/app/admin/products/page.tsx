@@ -244,9 +244,10 @@ export default function ProductsPage() {
     setLoading(true);
 
     try {
+      // Only upload new images that were added during editing
       const uploadPromises = newProduct.images.map(async (image) => {
         try {
-          const imageUrl = await uploadImage(new File([], image.name));
+          const imageUrl = await uploadImage(image);
           if (!imageUrl) throw new Error('Failed to upload image');
           return imageUrl;
         } catch (error) {
@@ -257,7 +258,7 @@ export default function ProductsPage() {
 
       const newImageUrls = await Promise.all(uploadPromises);
       
-      // Combine existing images that weren't deleted with new ones
+      // Keep existing images and add new ones
       const existingImages = editingProduct.images || [];
       const allImages = [...existingImages, ...newImageUrls];
 
@@ -688,7 +689,7 @@ export default function ProductsPage() {
                         {/* New Images */}
                         {newProduct.images.length > 0 && (
                           <div className="mt-4">
-                            <h4 className="text-sm font-medium text-gray-900 mb-2">New Images</h4>
+                            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">New Images</h4>
                             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
                               {newProduct.images.map((image, index) => (
                                 <div key={`new-${index}`} className="relative group aspect-square">
