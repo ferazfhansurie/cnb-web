@@ -32,6 +32,7 @@ export default function ProductsPage() {
     direction: null,
   });
   const { user: currentUser } = useAuth();
+  const [existingImagesToKeep, setExistingImagesToKeep] = useState<string[]>([]);
 
   // Get the selected category object
   const selectedCategory = categories.find(cat => cat.id === newProduct.category);
@@ -224,6 +225,7 @@ export default function ProductsPage() {
   const handleEditClick = (product: Product) => {
     setIsEditing(true);
     setEditingProduct(product);
+    setExistingImagesToKeep(product.images || []); // Initialize with all existing images
     setNewProduct({
       name: product.name,
       description: product.description,
@@ -235,6 +237,10 @@ export default function ProductsPage() {
       images: [], // Can't load existing files, but will keep existing image URLs
     });
     setIsAddModalOpen(true);
+  };
+
+  const removeExistingImage = (imageUrl: string) => {
+    setExistingImagesToKeep(prev => prev.filter(url => url !== imageUrl));
   };
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
@@ -258,9 +264,8 @@ export default function ProductsPage() {
 
       const newImageUrls = await Promise.all(uploadPromises);
       
-      // Keep existing images and add new ones
-      const existingImages = editingProduct.images || [];
-      const allImages = [...existingImages, ...newImageUrls];
+      // Use only the existing images that weren't deleted, plus new ones
+      const allImages = [...existingImagesToKeep, ...newImageUrls];
 
       await updateProduct(editingProduct.id, {
         name: newProduct.name,
@@ -284,6 +289,7 @@ export default function ProductsPage() {
         subsubcategory: '',
         images: [],
       });
+      setExistingImagesToKeep([]);
       setIsEditing(false);
       setEditingProduct(null);
       toast.success('Product updated successfully');
@@ -672,15 +678,24 @@ export default function ProductsPage() {
                             <h4 className="text-sm font-medium text-gray-900 mb-2 dark:text-white">Existing Images</h4>
                             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
                               {editingProduct.images.map((imageUrl, index) => (
-                                <div key={`existing-${index}`} className="relative group aspect-square">
-                                  <div className="h-full w-full overflow-hidden rounded-lg bg-gray-100">
-                                    <img
-                                      src={imageUrl}
-                                      alt={`Existing ${index + 1}`}
-                                      className="h-full w-full object-cover"
-                                    />
+                                existingImagesToKeep.includes(imageUrl) && (
+                                  <div key={`existing-${index}`} className="relative group aspect-square">
+                                    <div className="h-full w-full overflow-hidden rounded-lg bg-gray-100">
+                                      <img
+                                        src={imageUrl}
+                                        alt={`Existing ${index + 1}`}
+                                        className="h-full w-full object-cover"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removeExistingImage(imageUrl)}
+                                        className="absolute top-2 right-2 p-1.5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        <XMarkIcon className="h-4 w-4" />
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
+                                )
                               ))}
                             </div>
                           </div>
