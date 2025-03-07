@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createCategory, deleteCategory, getAllCategories, updateCategory } from '@/lib/firebase';
 import type { Category } from '@/types';
 import toast from 'react-hot-toast';
-import { PlusIcon, MinusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, MinusIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
 import DebugInfo from '@/components/DebugInfo';
 
@@ -23,11 +23,27 @@ export default function CategoriesPage() {
   const loadCategories = async () => {
     try {
       const fetchedCategories = await getAllCategories();
-      const categoriesWithSub = fetchedCategories.map(cat => ({
-        ...cat,
-        subCategories: cat.subCategories || []
-      }));
-      setCategories(categoriesWithSub);
+      // Sort categories by order if it exists, otherwise keep original order
+      const sortedCategories = fetchedCategories
+        .map((cat, index) => ({
+          ...cat,
+          order: cat.order ?? index,
+          subCategories: (cat.subCategories || [])
+            .map((subCat, subIndex) => ({
+              ...subCat,
+              order: subCat.order ?? subIndex,
+              subCategories: (subCat.subCategories || [])
+                .map((subSubCat, subSubIndex) => ({
+                  ...subSubCat,
+                  order: subSubCat.order ?? subSubIndex
+                }))
+                .sort((a, b) => (a.order || 0) - (b.order || 0))
+            }))
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+        }))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      setCategories(sortedCategories);
     } catch (error) {
       console.error('Error loading categories:', error);
       toast.error('Failed to load categories');
@@ -50,9 +66,15 @@ export default function CategoriesPage() {
         const mainCategory = categories.find(cat => cat.id === selectedParentId);
         if (mainCategory) {
           // Adding to main category
+          const maxOrder = mainCategory.subCategories.reduce(
+            (max, subCat) => Math.max(max, subCat.order || 0), 
+            -1
+          );
+          
           const newSubCategory = {
             id: Date.now().toString(),
             name: newCategoryName.trim(),
+            order: maxOrder + 1,
             subCategories: []
           };
           
@@ -64,9 +86,15 @@ export default function CategoriesPage() {
           for (const category of categories) {
             const parentSubCategory = category.subCategories?.find(sub => sub.id === selectedParentId);
             if (parentSubCategory) {
+              const maxOrder = (parentSubCategory.subCategories || []).reduce(
+                (max, subSubCat) => Math.max(max, subSubCat.order || 0), 
+                -1
+              );
+              
               const newSubSubCategory = {
                 id: Date.now().toString(),
-                name: newCategoryName.trim()
+                name: newCategoryName.trim(),
+                order: maxOrder + 1
               };
 
               const updatedSubCategories = category.subCategories.map(sub => {
@@ -87,14 +115,14 @@ export default function CategoriesPage() {
           }
         }
       } else {
-        // Create main category
+        // Create main category - order is handled in the createCategory function
         await createCategory(newCategoryName.trim());
       }
 
       setNewCategoryName('');
       setSelectedParentId(null);
       toast.success('Category created successfully');
-      loadCategories();
+      await loadCategories(); // Use await to ensure categories are loaded before continuing
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -106,8 +134,16 @@ export default function CategoriesPage() {
     if (window.confirm('Are you sure you want to delete this category?')) {
       try {
         await deleteCategory(categoryId);
+        
+        // Reorder remaining categories to ensure no gaps in order
+        const remainingCategories = categories.filter(cat => cat.id !== categoryId);
+        const updates = remainingCategories.map((cat, index) => 
+          updateCategory(cat.id, { order: index })
+        );
+        
+        await Promise.all(updates);
         toast.success('Category deleted successfully');
-        loadCategories();
+        await loadCategories();
       } catch (error: any) {
         toast.error(error.message);
       }
@@ -122,28 +158,184 @@ export default function CategoriesPage() {
           const isDirectSubcategory = category.subCategories.some(sub => sub.id === subcategoryId);
           
           if (isDirectSubcategory) {
+            // Remove the subcategory
             const updatedSubCategories = category.subCategories.filter(
               sub => sub.id !== subcategoryId
             );
-            await updateCategory(categoryId, { subCategories: updatedSubCategories });
+            
+            // Reorder remaining subcategories
+            const reorderedSubCategories = updatedSubCategories.map((subCat, index) => ({
+              ...subCat,
+              order: index
+            }));
+            
+            await updateCategory(categoryId, { subCategories: reorderedSubCategories });
           } else {
+            // Find which subcategory contains the sub-subcategory to delete
             const updatedSubCategories = category.subCategories.map(sub => {
               if (sub.subCategories?.some(subsub => subsub.id === subcategoryId)) {
+                // Remove the sub-subcategory
+                const updatedSubSubCategories = sub.subCategories.filter(
+                  subsub => subsub.id !== subcategoryId
+                );
+                
+                // Reorder remaining sub-subcategories
+                const reorderedSubSubCategories = updatedSubSubCategories.map((subSubCat, index) => ({
+                  ...subSubCat,
+                  order: index
+                }));
+                
                 return {
                   ...sub,
-                  subCategories: sub.subCategories.filter(subsub => subsub.id !== subcategoryId)
+                  subCategories: reorderedSubSubCategories
                 };
               }
               return sub;
             });
+            
             await updateCategory(categoryId, { subCategories: updatedSubCategories });
           }
+          
           toast.success('Subcategory deleted successfully');
-          loadCategories();
+          await loadCategories();
         }
       } catch (error: any) {
         toast.error(error.message);
       }
+    }
+  };
+
+  const handleMoveCategory = async (categoryId: string, direction: 'up' | 'down') => {
+    const categoryIndex = categories.findIndex(cat => cat.id === categoryId);
+    if (
+      (direction === 'up' && categoryIndex === 0) || 
+      (direction === 'down' && categoryIndex === categories.length - 1)
+    ) {
+      return; // Can't move further in this direction
+    }
+
+    const newCategories = [...categories];
+    const swapIndex = direction === 'up' ? categoryIndex - 1 : categoryIndex + 1;
+    
+    // Swap the order values
+    const tempOrder = newCategories[categoryIndex].order;
+    newCategories[categoryIndex].order = newCategories[swapIndex].order;
+    newCategories[swapIndex].order = tempOrder;
+    
+    // Swap the positions in the array
+    [newCategories[categoryIndex], newCategories[swapIndex]] = 
+      [newCategories[swapIndex], newCategories[categoryIndex]];
+    
+    setCategories(newCategories);
+    
+    // Update both categories in Firebase
+    try {
+      await updateCategory(newCategories[categoryIndex].id, { 
+        order: newCategories[categoryIndex].order 
+      });
+      await updateCategory(newCategories[swapIndex].id, { 
+        order: newCategories[swapIndex].order 
+      });
+      toast.success('Category order updated');
+    } catch (error: any) {
+      toast.error('Failed to update category order');
+      loadCategories(); // Reload to restore original order
+    }
+  };
+
+  const handleMoveSubcategory = async (categoryId: string, subcategoryId: string, direction: 'up' | 'down') => {
+    const categoryIndex = categories.findIndex(cat => cat.id === categoryId);
+    if (categoryIndex === -1) return;
+    
+    const category = categories[categoryIndex];
+    const subcategoryIndex = category.subCategories.findIndex(sub => sub.id === subcategoryId);
+    
+    if (
+      (direction === 'up' && subcategoryIndex === 0) || 
+      (direction === 'down' && subcategoryIndex === category.subCategories.length - 1)
+    ) {
+      return; // Can't move further in this direction
+    }
+    
+    const newCategories = [...categories];
+    const newSubcategories = [...newCategories[categoryIndex].subCategories];
+    const swapIndex = direction === 'up' ? subcategoryIndex - 1 : subcategoryIndex + 1;
+    
+    // Swap the order values
+    const tempOrder = newSubcategories[subcategoryIndex].order;
+    newSubcategories[subcategoryIndex].order = newSubcategories[swapIndex].order;
+    newSubcategories[swapIndex].order = tempOrder;
+    
+    // Swap the positions in the array
+    [newSubcategories[subcategoryIndex], newSubcategories[swapIndex]] = 
+      [newSubcategories[swapIndex], newSubcategories[subcategoryIndex]];
+    
+    newCategories[categoryIndex].subCategories = newSubcategories;
+    setCategories(newCategories);
+    
+    // Update the category with the new subcategories order
+    try {
+      await updateCategory(categoryId, { 
+        subCategories: newSubcategories 
+      });
+      toast.success('Subcategory order updated');
+    } catch (error: any) {
+      toast.error('Failed to update subcategory order');
+      loadCategories(); // Reload to restore original order
+    }
+  };
+
+  const handleMoveSubSubcategory = async (
+    categoryId: string, 
+    subcategoryId: string, 
+    subSubcategoryId: string, 
+    direction: 'up' | 'down'
+  ) => {
+    const categoryIndex = categories.findIndex(cat => cat.id === categoryId);
+    if (categoryIndex === -1) return;
+    
+    const category = categories[categoryIndex];
+    const subcategoryIndex = category.subCategories.findIndex(sub => sub.id === subcategoryId);
+    if (subcategoryIndex === -1) return;
+    
+    const subcategory = category.subCategories[subcategoryIndex];
+    if (!subcategory.subCategories) return;
+    
+    const subSubcategoryIndex = subcategory.subCategories.findIndex(sub => sub.id === subSubcategoryId);
+    if (
+      (direction === 'up' && subSubcategoryIndex === 0) || 
+      (direction === 'down' && subSubcategoryIndex === subcategory.subCategories.length - 1)
+    ) {
+      return; // Can't move further in this direction
+    }
+    
+    const newCategories = [...categories];
+    const newSubcategory = {...newCategories[categoryIndex].subCategories[subcategoryIndex]};
+    const newSubSubcategories = [...(newSubcategory.subCategories || [])];
+    const swapIndex = direction === 'up' ? subSubcategoryIndex - 1 : subSubcategoryIndex + 1;
+    
+    // Swap the order values
+    const tempOrder = newSubSubcategories[subSubcategoryIndex].order;
+    newSubSubcategories[subSubcategoryIndex].order = newSubSubcategories[swapIndex].order;
+    newSubSubcategories[swapIndex].order = tempOrder;
+    
+    // Swap the positions in the array
+    [newSubSubcategories[subSubcategoryIndex], newSubSubcategories[swapIndex]] = 
+      [newSubSubcategories[swapIndex], newSubSubcategories[subSubcategoryIndex]];
+    
+    newSubcategory.subCategories = newSubSubcategories;
+    newCategories[categoryIndex].subCategories[subcategoryIndex] = newSubcategory;
+    setCategories(newCategories);
+    
+    // Update the category with the new structure
+    try {
+      await updateCategory(categoryId, { 
+        subCategories: newCategories[categoryIndex].subCategories 
+      });
+      toast.success('Sub-subcategory order updated');
+    } catch (error: any) {
+      toast.error('Failed to update sub-subcategory order');
+      loadCategories(); // Reload to restore original order
     }
   };
 
@@ -155,7 +347,7 @@ export default function CategoriesPage() {
   };
 
   const renderCategories = () => {
-    return categories.map(category => {
+    return categories.map((category, index) => {
       const hasSubCategories = category.subCategories?.length > 0;
       const isExpanded = expandedCategories[category.id];
 
@@ -178,6 +370,26 @@ export default function CategoriesPage() {
               <span className="font-semibold text-gray-900 dark:text-white">{category.name}</span>
             </div>
             <div className="flex items-center space-x-2">
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleMoveCategory(category.id, 'up')}
+                  disabled={index === 0}
+                  className={`p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors ${
+                    index === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <ArrowUpIcon className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => handleMoveCategory(category.id, 'down')}
+                  disabled={index === categories.length - 1}
+                  className={`p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors ${
+                    index === categories.length - 1 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <ArrowDownIcon className="h-5 w-5" />
+                </button>
+              </div>
               <button
                 onClick={() => setSelectedParentId(category.id)}
                 className="px-3 py-1.5 text-sm font-medium text-white bg-[#FB8A13] rounded-md hover:bg-[#e07911] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FB8A13]"
@@ -195,7 +407,7 @@ export default function CategoriesPage() {
 
           {isExpanded && hasSubCategories && (
             <div className="ml-8 space-y-3">
-              {category.subCategories.map(subCategory => {
+              {category.subCategories.map((subCategory, subIndex) => {
                 const hasSubSubCategories = subCategory.subCategories?.length || 0 > 0;
                 const isSubExpanded = expandedCategories[subCategory.id];
 
@@ -218,6 +430,26 @@ export default function CategoriesPage() {
                         <span className="font-medium text-gray-900 dark:text-white">{subCategory.name}</span>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <div className="flex items-center">
+                          <button
+                            onClick={() => handleMoveSubcategory(category.id, subCategory.id, 'up')}
+                            disabled={subIndex === 0}
+                            className={`p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors ${
+                              subIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            <ArrowUpIcon className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveSubcategory(category.id, subCategory.id, 'down')}
+                            disabled={subIndex === category.subCategories.length - 1}
+                            className={`p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors ${
+                              subIndex === category.subCategories.length - 1 ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            <ArrowDownIcon className="h-5 w-5" />
+                          </button>
+                        </div>
                         <button
                           onClick={() => setSelectedParentId(subCategory.id)}
                           className="px-3 py-1.5 text-sm font-medium text-white bg-[#FB8A13] rounded-md hover:bg-[#e07911] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FB8A13]"
@@ -235,18 +467,50 @@ export default function CategoriesPage() {
 
                     {isSubExpanded && subCategory.subCategories && (
                       <div className="ml-8 space-y-3">
-                        {subCategory.subCategories.map(subSubCategory => (
+                        {subCategory.subCategories.map((subSubCategory, subSubIndex) => (
                           <div
                             key={subSubCategory.id}
                             className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-[#FB8A13] border-l-4 border-t-0 border-r-0 border-b-0 border-l-[#FB8A13]"
                           >
                             <span className="text-gray-900 dark:text-white">{subSubCategory.name}</span>
-                            <button
-                              onClick={() => handleDeleteSubcategory(category.id, subSubCategory.id)}
-                              className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-                            >
-                              <TrashIcon className="h-5 w-5" />
-                            </button>
+                            <div className="flex items-center space-x-2">
+                              <div className="flex items-center">
+                                <button
+                                  onClick={() => handleMoveSubSubcategory(
+                                    category.id, 
+                                    subCategory.id, 
+                                    subSubCategory.id, 
+                                    'up'
+                                  )}
+                                  disabled={subSubIndex === 0}
+                                  className={`p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors ${
+                                    subSubIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                >
+                                  <ArrowUpIcon className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={() => handleMoveSubSubcategory(
+                                    category.id, 
+                                    subCategory.id, 
+                                    subSubCategory.id, 
+                                    'down'
+                                  )}
+                                  disabled={subSubIndex === (subCategory.subCategories?.length || 0) - 1}
+                                  className={`p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors ${
+                                    subSubIndex === (subCategory.subCategories?.length || 0) - 1 ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                >
+                                  <ArrowDownIcon className="h-5 w-5" />
+                                </button>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteSubcategory(category.id, subSubCategory.id)}
+                                className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                              >
+                                <TrashIcon className="h-5 w-5" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>

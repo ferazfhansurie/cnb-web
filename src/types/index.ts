@@ -28,15 +28,19 @@ export interface Product {
 export interface Category {
   id: string;
   name: string;
+  order?: number;
   subCategories: Array<{
     id: string;
     name: string;
+    order?: number;
     subCategories?: Array<{
       id: string;
       name: string;
+      order?: number;
       subCategories?: Array<{
         id: string;
         name: string;
+        order?: number;
       }>;
     }>;
   }>;

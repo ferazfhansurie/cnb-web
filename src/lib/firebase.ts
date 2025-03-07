@@ -103,9 +103,18 @@ export async function getProductById(id: string) {
 export async function createCategory(name: string, parentCategoryId?: string, parentSubcategoryId?: string) {
   try {
     if (!parentCategoryId) {
+      // Get all categories to determine the next order value
+      const querySnapshot = await getDocs(categoriesCollection);
+      const categories = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Category));
+      const maxOrder = categories.reduce((max, cat) => Math.max(max, cat.order || 0), -1);
+      
       const newCategory = {
         name,
         subCategories: [],
+        order: maxOrder + 1,
         createdAt: new Date(),
       };
       const docRef = await addDoc(categoriesCollection, newCategory);
@@ -117,9 +126,16 @@ export async function createCategory(name: string, parentCategoryId?: string, pa
     const category = categorySnap.data() as Category;
 
     if (!parentSubcategoryId) {
+      // Find the max order in subcategories
+      const maxSubOrder = category.subCategories.reduce(
+        (max, subCat) => Math.max(max, subCat.order || 0), 
+        -1
+      );
+      
       const newSubCategory = {
         id: Date.now().toString(),
         name,
+        order: maxSubOrder + 1,
         subCategories: []
       };
       await updateDoc(categoryRef, {
@@ -128,6 +144,20 @@ export async function createCategory(name: string, parentCategoryId?: string, pa
       return newSubCategory.id;
     }
 
+    const parentSubCategory = category.subCategories.find(
+      subCat => subCat.id === parentSubcategoryId
+    );
+    
+    if (!parentSubCategory) {
+      throw new Error("Parent subcategory not found");
+    }
+    
+    // Find the max order in sub-subcategories
+    const maxSubSubOrder = (parentSubCategory.subCategories || []).reduce(
+      (max, subSubCat) => Math.max(max, subSubCat.order || 0), 
+      -1
+    );
+    
     const updatedSubCategories = category.subCategories.map(subCat => {
       if (subCat.id === parentSubcategoryId) {
         return {
@@ -137,6 +167,7 @@ export async function createCategory(name: string, parentCategoryId?: string, pa
             {
               id: Date.now().toString(),
               name,
+              order: maxSubSubOrder + 1,
               subCategories: []
             }
           ]
@@ -156,10 +187,13 @@ export async function createCategory(name: string, parentCategoryId?: string, pa
 
 export async function getAllCategories() {
   const querySnapshot = await getDocs(categoriesCollection);
-  return querySnapshot.docs.map(doc => ({
+  const categories = querySnapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data(),
   } as Category));
+  
+  // Sort categories by order if it exists
+  return categories.sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
 export async function deleteCategory(categoryId: string) {
