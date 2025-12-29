@@ -1,0 +1,53 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    function isManager() {
+      return isAuthenticated() && 
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'Manager';
+    }
+
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+        request.resource.size <= 5 * 1024 * 1024; // 5MB max
+    }
+
+    // Rules for images folder
+    match /images/{imageId} {
+      // Anyone authenticated can read
+      allow read: if isAuthenticated();
+      
+      // Both admins and managers can upload, must be valid image
+      allow create, update: if (isAdmin() || isManager()) && isValidImage();
+      
+      // Both admins and managers can delete
+      allow delete: if isAdmin() || isManager();
+    }
+
+    // Rules for products folder
+    match /products/{imageId} {
+      allow read: if isAuthenticated();
+      allow write: if (isAdmin() || isManager()) && isValidImage();
+    }
+
+    // Deny access to all other paths by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+} 
